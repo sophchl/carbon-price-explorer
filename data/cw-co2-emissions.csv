@@ -1,0 +1,8 @@
+Sector,unit,1990,1991,1992,1993,1994,1995,1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018
+Energy,MtCO2e,4811.51,4775.35,4847.21,4965.51,5036.92,5089.82,5245.80,5509.43,5551.24,5570.06,5734.96,5707.64,5551.00,5616.28,5694.14,5709.89,5609.72,5694.76,5521.92,5129.94,5361.42,5139.89,4914.94,5053.13,5063.14,4942.88,4849.20,4773.40,4940.08
+Industrial Processes,MtCO2e,33.48,32.74,32.99,34.84,36.31,37.08,37.31,38.56,39.46,40.24,41.45,41.61,43.16,43.35,45.89,46.19,46.85,45.51,41.42,29.61,31.45,32.21,35.27,36.37,39.44,39.91,39.44,40.32,41.21
+Agriculture,MtCO2e,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false
+Waste,MtCO2e,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false
+Land-Use Change and Forestry,MtCO2e,-418.58,-418.58,-418.58,-418.58,-418.71,-418.59,-418.65,-418.70,-418.64,-418.63,-418.53,-401.46,-401.48,-401.50,-401.57,-401.63,-401.71,-401.75,-401.84,-401.90,-401.91,-418.98,-419.05,-419.16,-419.23,-419.26,-231.80,-231.82,-231.73
+Data source,CAIT
+Data for,Countries/Regions: United States. Sectors/Subsectors: Total including LUCF. Gases: CO2. Calculation: Total. Show data by Sectors

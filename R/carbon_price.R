@@ -25,7 +25,7 @@ ghg_data_us <- ghg_data %>%
   select(c("year", "co2", "total_ghg"))
 
 ghg_data_us %>%
-  gather(key = "variable", value = "value", -year) %>% View()
+  gather(key = "variable", value = "value", -year) %>%
   ggplot(aes(x = year, y = value)) +
   geom_line(aes(color = variable)) +
   labs(x = "year", y = "Co2/GHG emissions") +
@@ -35,12 +35,12 @@ ghg_data_us %>%
 ## emission data per sector from climatewatch
 co2_data <- read.csv(file = "data/cw-co2-emissions.csv")
 available_years_co2 <- colnames(co2_data)[3:ncol(co2_data)] %>%
-  sapply(function(x, start, stop) substr(x,start,stop), start = 2, stop = 5)
+  sapply(function(x, start, stop) substr(x, start, stop), start = 2, stop = 5)
 
-plot(available_years_co2, co2_data[1,3:ncol(co2_data)], type = "l",
+plot(available_years_co2, co2_data[1, 3:ncol(co2_data)], type = "l",
   ylim = c(-500, 5800), ylab = "MtCo2 per sector", xlab = "year")
-apply(co2_data[2:nrow(co2_data),3:ncol(co2_data)], 1,
-  function(x,t) lines(t,x), t = available_years_co2)
+apply(co2_data[2:nrow(co2_data), 3:ncol(co2_data)], 1,
+  function(x, t) lines(t, x), t = available_years_co2)
 
 ## data available:
 # co2 emission sectors: energy, industrial, land-use

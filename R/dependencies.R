@@ -1,11 +1,14 @@
-## dependencies
+### dependencies
+
+#--------------------------------------------------------------------
 
 # install if necessary
 
 list_of_packages <- c("tidyquant", "bizdays", "tidyverse", "readxl")
-new_packages <- list.of.packages[!(list.of.packages %in%
+new_packages <- list_of_packages[!(list_of_packages %in%
     installed.packages() [, "Package"])]
-if (length(new.packages)) install.packages(new.packages)
+if (length(new_packages)) install.packages(new_packages)
+
 
 # libraries
 
@@ -13,6 +16,7 @@ library(tidyquant)
 library(bizdays)
 library(tidyverse)
 library(readxl)
+
 
 ## explore
 

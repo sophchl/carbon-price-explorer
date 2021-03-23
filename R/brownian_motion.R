@@ -1,4 +1,6 @@
-## simulate brownian motion path
+### simulate brownian motion path
+
+#--------------------------------------------------------------------
 
 ## set variables
 t <- 0:100

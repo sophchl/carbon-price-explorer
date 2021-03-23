@@ -1,8 +1,10 @@
-## explore carbon price and emission data
+### explore carbon price and emission data
 
-## carbon price scenarios from iias
-carbon_price <- read.csv(file = "data/cd-links-carbon-price.csv") %>%
-  slice(seq_len(nrow(carbon_price) - 1))
+#--------------------------------------------------------------------
+
+## carbon price scenarios from iias: how much will carbon cost in each scenario?
+carbon_price <- read.csv(file = "data/cd-links-carbon-price.csv")
+carbon_price <- carbon_price %>% slice(seq_len(nrow(carbon_price) - 1))
 
 colnames(carbon_price) <- c(colnames(carbon_price)[0:5],
   substr(colnames(carbon_price[6:ncol(carbon_price)]), start = 2, stop = 5))
@@ -17,7 +19,7 @@ carbon_price %>%
   labs(x = "year", y = "US$/tC02 per scenario") +
   theme_minimal()
 
-## emission data per country for our world in data
+## emission data per country for our world in data: emssions per country
 ghg_data <- read_excel(path = "data/owid-co2-data.xlsx")
 
 ghg_data_us <- ghg_data %>%
@@ -32,7 +34,7 @@ ghg_data_us %>%
   scale_color_manual(values = c("darkred", "steelblue")) +
   theme_classic()
   
-## emission data per sector from climatewatch
+## emission data per sector from climatewatch: emissions per sector
 co2_data <- read.csv(file = "data/cw-co2-emissions.csv")
 available_years_co2 <- colnames(co2_data)[3:ncol(co2_data)] %>%
   sapply(function(x, start, stop) substr(x, start, stop), start = 2, stop = 5)

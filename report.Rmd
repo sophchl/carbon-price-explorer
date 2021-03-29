@@ -1,3 +1,24 @@
+---
+title: "Report"
+author: "sophia"
+date: "29 3 2021"
+output: html_document
+---
+
+```{r load-packages, include=FALSE}
+library(dplyr)
+library(magrittr)
+library(knitr)
+library(tidyquant)
+library(bizdays)
+library(tidyverse)
+library(readxl)
+library(rmarkdown)
+
+"%!in%" <- function(x,y)!('%in%'(x,y))
+```
+
+```{r code, include = FALSE}
 ### look at djia index
 
 ## add BM simulation after today
@@ -56,15 +77,17 @@ total_stock_data <- tibble(
       my_stock) %>%
       as_tibble(.name_repair = c("unique", "minimal", "universal"))
     )
+```
 
-## plot
+```{r plot}
 total_stock_data  %>%
   gather(key = "dow_series", value = "value", -date)  %>%
   ggplot(aes(x = date, y = value)) +
   geom_path() +
   theme_classic()
+```
 
-
+```{r code, include = FALSE}
 ### US policy/law events: climate policy database
 
 # import carbon policy decision dates
@@ -75,6 +98,9 @@ carbon_policy <- carbon_policy  %>% select(-"Date_Source")
 decision_dates <- unique(carbon_policy$Signation_Date) %>%
   na.omit() %>%
   ymd()
+```
+
+```{r plot}
 
 # plot with all data + simulation
 total_stock_data  %>%
@@ -123,6 +149,9 @@ djia  %>%
   select(date, daily.returns)  %>%
   filter(date %in% decision_dates)  %>%
   inner_join(carbon_policy_event)
+```
+
+```{r code, include = FALSE}
   
 ### add worldwide policy events: MSCI
 
@@ -174,3 +203,7 @@ djia  %>%
   select(date, daily.returns)  %>%
   filter(date %in% decision_dates)  %>%
   inner_join(carbon_policy_event)
+```
+
+
+

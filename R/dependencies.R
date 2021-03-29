@@ -16,8 +16,8 @@ library(tidyquant)
 library(bizdays)
 library(tidyverse)
 library(readxl)
-library(xtable)
 library(knitr)
+library(rmarkdown)
 
 # functions
 

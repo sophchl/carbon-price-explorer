@@ -122,7 +122,7 @@ carbon_policy_event <- carbon_policy  %>%
 djia  %>%
   select(date, daily.returns)  %>%
   filter(date %in% decision_dates)  %>%
-  inner_join(carbon_policy_event)
+  inner_join(carbon_policy_event)  %>% knitr::kable()
   
 ### add worldwide policy events: MSCI
 
@@ -160,17 +160,18 @@ djia  %>%
     fill = "yellow", alpha = 0.2) +
   theme_classic()
 
-# compare average daily return on all decision dates
+# compare average daily return on world politic decision dates
 djia  %>%
   select(date, daily.returns)  %>%
-  mutate(in_decision_dates = date %in% highlights1$date |
-    date %in% highlights2$date)  %>%
-  group_by(in_decision_dates)  %>%
+  mutate(in_decision_dates = date %in% highlights2$date)  %>%
+    group_by(in_decision_dates)  %>%
   summarise(return_mean = mean(daily.returns),
     return_variance = var(daily.returns))
 
 # show returns on the decision day with name of event
 djia  %>%
   select(date, daily.returns)  %>%
-  filter(date %in% decision_dates)  %>%
-  inner_join(carbon_policy_event)
+  filter(date %in% highlights2$date)  %>%
+  inner_join(carbon_policy_world  %>% mutate(date = ymd(date))) %>%
+  select(-ID) %>% knitr::kable()
+head(highlights2)

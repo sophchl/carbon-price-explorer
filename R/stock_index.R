@@ -103,3 +103,5 @@ total_stock_data  %>%
     aes(xmin = (date - 10), xmax = (date + 10), ymin = -Inf, ymax = Inf),
     fill = "orange", alpha = 0.05) +
   theme_classic()
+
+## look at return characteristics

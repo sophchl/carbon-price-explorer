@@ -16,6 +16,12 @@ library(tidyquant)
 library(bizdays)
 library(tidyverse)
 library(readxl)
+library(xtable)
+library(knitr)
+
+# functions
+
+"%!in%" <- function(x,y)!('%in%'(x,y))
 
 
 ## explore

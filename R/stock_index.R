@@ -65,17 +65,18 @@ total_stock_data  %>%
   theme_classic()
 
 
-### compare stock price development to introduction of carbon policies
+### US policy/law events: climate policy database
 
 # import carbon policy decision dates
 carbon_policy <- read_excel(path = "data/climate_policies.xlsx")
 carbon_policy <- carbon_policy  %>% select(-"Date_Source")
-# create tibble of decision dates
+
+# create vector of decision dates
 decision_dates <- unique(carbon_policy$Signation_Date) %>%
   na.omit() %>%
   ymd()
 
-## plot
+# plot with all data + simulation
 total_stock_data  %>%
   gather(key = "dow_series", value = "value", -date)  %>%
   ggplot(aes(x = date, y = value)) +
@@ -87,8 +88,7 @@ total_stock_data  %>%
     fill = "orange", alpha = 0.05) +
   theme_classic()
 
-
-## zoom in plot
+# zoom in plot
 total_stock_data  %>%
   gather(key = "dow_series", value = "value", -date)  %>%
   filter(date >= min(decision_dates) - 200 &
@@ -104,4 +104,73 @@ total_stock_data  %>%
     fill = "orange", alpha = 0.05) +
   theme_classic()
 
-## look at return characteristics
+# compare average daily return at the decision day
+djia  %>%
+  select(date, daily.returns)  %>%
+  mutate(in_decision_dates = date %in% decision_dates)  %>%
+  group_by(in_decision_dates)  %>%
+  summarise(return_mean = mean(daily.returns),
+    return_variance = var(daily.returns))
+
+# create a tibble which contains dates and policy names (merge downstream)
+carbon_policy_event <- carbon_policy  %>%
+  mutate(date = Signation_Date)  %>%
+  select(date, Policy_Name)  %>%
+  unique()
+
+# show returns on the decision day with name of event
+djia  %>%
+  select(date, daily.returns)  %>%
+  filter(date %in% decision_dates)  %>%
+  inner_join(carbon_policy_event)
+
+### add worldwide policy events: MSCI
+
+# import data
+carbon_policy_world <- read_excel(path = "data/climate_policies2.xlsx")
+
+# create highlight tibbles
+# for US policy events
+highlights1 <- carbon_policy  %>%
+  mutate(date = Signation_Date)  %>%
+  inner_join(djia)  %>%
+  mutate(date = ymd(date), policy_name = Policy_Name)  %>%
+  select(date, policy_name, adjusted, daily.returns)  %>%
+  unique()
+
+# for world policy events
+highlights2 <- carbon_policy_world  %>%
+  inner_join(djia)  %>%
+  mutate(date = ymd(date))  %>% 
+  select(date, policy_name, impact, adjusted, daily.returns)
+
+# plot djia with all events
+djia  %>%
+  select(adjusted, date)  %>%
+  ggplot(aes(x = date, y = adjusted)) +
+  geom_line() +
+  geom_rect(data = highlights2  %>% filter(impact == "progress"),
+    aes(xmin = (date - 30), xmax = (date + 30), ymin = -Inf, ymax = Inf),
+    fill = "green", alpha = 0.2) +
+  geom_rect(data = highlights2  %>% filter(impact == "setback"),
+    aes(xmin = (date - 30), xmax = (date + 30), ymin = -Inf, ymax = Inf),
+    fill = "orange", alpha = 0.2) +
+  geom_rect(data = highlights1,
+    aes(xmin = (date - 30), xmax = (date + 30), ymin = -Inf, ymax = Inf),
+    fill = "yellow", alpha = 0.2) +
+  theme_classic()
+
+# compare average daily return on all decision dates
+djia  %>%
+  select(date, daily.returns)  %>%
+  mutate(in_decision_dates = date %in% highlights1$date |
+    date %in% highlights2$date)  %>%
+  group_by(in_decision_dates)  %>%
+  summarise(return_mean = mean(daily.returns),
+    return_variance = var(daily.returns))
+
+# show returns on the decision day with name of event
+djia  %>%
+  select(date, daily.returns)  %>%
+  filter(date %in% decision_dates)  %>%
+  inner_join(carbon_policy_event)

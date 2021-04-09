@@ -28,3 +28,4 @@ library(rmarkdown)
 
 tq_index_options()
 tq_get_options()
+tq_transmute_fun_options()

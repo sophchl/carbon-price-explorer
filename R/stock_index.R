@@ -5,7 +5,7 @@
 
 #--------------------------------------------------------------------
 
-### djia index data
+### djia index data ------
 
 # get daily djia ticker from yahoo finance
 djia <- tq_get("DJIA", get = "stock.prices", from = "1990-01-01")
@@ -18,7 +18,7 @@ djia <- djia %>%
     type = "arithmetic")  %>%
   mutate(date = ymd(date))
 
-### simulation
+### simulation ------
 
 # simulation parameters
 s0 <- tail(djia$adjusted, 1) # initial stock price for simulation
@@ -65,7 +65,7 @@ total_stock_data  %>%
   theme_classic()
 
 
-### US policy/law events: climate policy database
+### US policy/law events: climate policy database ------
 
 # import carbon policy decision dates
 carbon_policy <- read_excel(path = "data/climate_policies.xlsx")
@@ -122,9 +122,9 @@ carbon_policy_event <- carbon_policy  %>%
 djia  %>%
   select(date, daily.returns)  %>%
   filter(date %in% decision_dates)  %>%
-  inner_join(carbon_policy_event)  %>% knitr::kable()
+  inner_join(carbon_policy_event)
   
-### add worldwide policy events: MSCI
+### add worldwide policy events: MSCI ------
 
 # import data
 carbon_policy_world <- read_excel(path = "data/climate_policies2.xlsx")

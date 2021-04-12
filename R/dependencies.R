@@ -13,11 +13,11 @@ if (length(new_packages)) install.packages(new_packages)
 # libraries
 
 library(tidyquant)
-library(bizdays)
 library(tidyverse)
 library(readxl)
-library(knitr)
-library(rmarkdown)
+#library(knitr)
+#library(rmarkdown)
+#library(bizdays)
 
 # functions
 

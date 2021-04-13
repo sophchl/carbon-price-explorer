@@ -13,6 +13,10 @@ library(shiny)
 library(tidyquant)
 library(tidyverse)
 
+djia <- tq_get("DJIA", get = "stock.prices", from = "1990-01-01")
+gdp <- tq_get("GDP", get = "economic.data", from = "1990-01-01")
+scenarios <- read.csv(file = "data/cd-links-gdp-us.csv")
+
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -48,17 +52,21 @@ ui <- fluidPage(
         ),
         
         mainPanel(em("please wait for the graphics to load (progress displayed in bottom right corner)"),
+                  ## Input variables: DJIA and GDP
                   h3("Graphs of input variables"),
-                  strong("DJIA price and GDP (USA) Timeline"),
+                  strong("DJIA price and GDP (USA) Timeline"), em("(quarterly data)"),
                   plotOutput("price_plot"),
-                  strong("DJIA returns"),
-                  plotOutput("return_plot"),
-                  strong("GDP scenarios"),
+                  strong("GDP scenarios"), em("(quarterly and five-year data)"),
                   plotOutput("gdp_plot"),
+                  ## DJIA risk and returns
                   h3("Graphs of different risks and returns"),
-                  strong("Market risk"),
                   textOutput("selected_variables"),
+                  strong("DJIA returns"), em("(daily data)"),
+                  plotOutput("return_plot"),
+                  strong("Market risk"), em("(daily djia closing price volatility)"),
                   plotOutput("vola_plot"),
+                  h3("Sources"),
+                  uiOutput("tabs")
                   )
         )
     
@@ -68,7 +76,7 @@ ui <- fluidPage(
 server <- function(input, output) {
     
     output$price_plot <- renderPlot({
-        plot_descriptives_quarterly(djia, "arithmetic", gdp) # fix "arithmetic" because returns don't matter in this plot
+        plot_descriptives_quarterly(djia, gdp) # fix "arithmetic" because returns don't matter in this plot
     })
     
     output$return_plot <- renderPlot({
@@ -87,6 +95,14 @@ server <- function(input, output) {
     
     output$vola_plot <- renderPlot({
         plot_djia_volatility_daily(djia, input$select_returns, c(input$slider_time[1]: input$slider_time[2]))
+    })
+    
+    url_djia <- a("Yahoo Finance, DJIA", href = "https://finance.yahoo.com/quote/%5EDJI/")
+    url_gdp <- a("FRED, GDP", href = "https://fred.stlouisfed.org/series/GDP")
+    url_scenarios <- a("IIASA, CD-LINKS Scenario Explorer", href = "https://data.ene.iiasa.ac.at/cd-links/")
+    
+    output$tabs <- renderUI({
+        tagList(url_djia, url_gdp, url_scenarios)
     })
 }
 

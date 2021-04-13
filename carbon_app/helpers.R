@@ -1,8 +1,5 @@
-djia <- tq_get("DJIA", get = "stock.prices", from = "1990-01-01")
-gdp <- tq_get("GDP", get = "economic.data", from = "1990-01-01")
-scenarios <- read.csv(file = "data/cd-links-gdp-us.csv")
-
 #scenarios <- read.csv(file = "carbon_app/data/cd-links-gdp-us.csv")
+# app_diretory: 'C:/Users/Sophia/Dropbox/01_Studium/04_projects/CarbonPriceExplorer/carbon_app'
 
 # prepare djia data
 
@@ -23,48 +20,41 @@ djia_prepare_daily <- function(data, mean_type)  {
   
 }
 
-djia_prepare_quarterly <- function(data, mean_type)  {
-  # prepares djia data for daily analysis
-  # input: djia as loaded by tidyquant, mean_type: "arithmetic" or "log"
-  # output: djia with: date (ymd), open, high, low, close, volume, adjusted, daily.return
+# prepare scenario data
+
+scenario_prepare <- function(data) {
+  # remove strings from column names and remove last row with source invormation
   
-  data_out <- djia %>% 
-    mutate(date = ymd(date)) %>% 
-    tq_transmute(select = c(date, open, high, low, close, volume, adjusted),
-                 mutate_fun = to.quarterly
-    ) %>% 
-    tq_mutate(select = adjusted,
-              mutate_fun = periodReturn,
-              period = "quarterly",
-              type = mean_type)
+  colnames(data) <- c(colnames(data)[0:5],
+                      substr(colnames(data[6:ncol(data)]), start = 2, stop = 5))
+  data <- data %>% slice(seq_len(nrow(data) - 1))
   
-  return(data_out)
-  
+  return(data)
 }
 
 # calculate a function that calculates volatility for selected days
 
-my_vola_fun <- function(data, vector_days) {
+my_vola_fun <- function(data, time_frame) {
   # calculates volatility for a vector of days (loop so not super fast)
   # input: data, vector that holds the aggregation periods to calculate volatility for
   # output: tibble with period and vola
   
   vola_vector <- c()
-  for (i in seq_along(vector_days)){
+  for (i in seq_along(time_frame)){
     return_vola <- volatility(data[, c("open", "high", "low", "close")],
-                              n = vector_days[i], calc = "close") %>%
+                              n = time_frame[i], calc = "close") %>%
       mean(na.rm = T)
     
     vola_vector[i] <- return_vola
   }
-  vola_data <- data %>% summarise(period = vector_days,
-                                  djia_vola = vola_vector)
+  vola_data <- tibble(period = time_frame,
+                      djia_vola = vola_vector)
   
   return(vola_data)
 }
 
-my_vola_fun_progress <- function(data, vector_days) {
-  # calculates volatility for a vector of days (loop so not super fast)
+my_vola_fun_progress <- function(data, time_frame) {
+  # calculates volatility for a vector of days (loop so not super fast) and tracks progress
   # input: data, vector that holds the aggregation periods to calculate volatility for
   # output: tibble with period and vola
   
@@ -73,14 +63,14 @@ my_vola_fun_progress <- function(data, vector_days) {
   withProgress(message = "Making plot", value = 0, {
     
     # number of times we go through the loop
-    n <- vector_days[length(vector_days)] - vector_days[1] + 1
+    n <- time_frame[length(time_frame)] - time_frame[1] + 1
     
     # go through the loop
-    for (i in seq_along(vector_days)){
+    for (i in seq_along(time_frame)){
       
       # add data in every step
       return_vola <- volatility(data[, c("open", "high", "low", "close")],
-                                n = vector_days[i], calc = "close") %>%
+                                n = time_frame[i], calc = "close") %>%
         mean(na.rm = T)
       
       vola_vector[i] <- return_vola
@@ -92,20 +82,10 @@ my_vola_fun_progress <- function(data, vector_days) {
     
   })
   
-  vola_data <- data %>% summarise(period = vector_days,
-                                  djia_vola = vola_vector)
+  vola_data <- tibble(period = time_frame,
+                      djia_vola = vola_vector)
   
   return(vola_data)
-}
-
-# prepare scenario data
-scenario_prepare <- function(data) {
-  
-  colnames(data) <- c(colnames(data)[0:5],
-                           substr(colnames(data[6:ncol(data)]), start = 2, stop = 5))
-  data <- data %>% slice(seq_len(nrow(data) - 1))
-  
-  return(data)
 }
 
 
@@ -123,23 +103,43 @@ plot_djia_volatility_daily <- function(data, mean_type, time_frame) {
   ggplot(data_plot, aes(x = period, fill = djia_vola, y = djia_vola)) +
     geom_area(fill = "#8DD3C7", color = "#1B9E77") +
     #geom_line() +
+    xlab("aggregation horizon (days)") + 
+    ylab("DJIA closing price volatility") +
+    coord_cartesian(ylim = c(min(data_plot$djia_vola), max(data_plot$djia_vola)),
+                    xlim = c(time_frame[1], tail(time_frame,1))) +
+    theme_classic()
+
+}
+
+plot_djia_volatility_monthly <- function(data, mean_type, time_frame) {
+  # creates a plot of volatility against aggregation period
+  # input: djia raw data, mean_type, time_frame
+  # output: ggplot
+  
+  data_plot <- data %>% 
+    tq_transmute(select = c(date, open, high, low, close),
+                 mutate_fun = to.quarterly) %>% 
+    my_vola_fun(time_frame)
+  
+  ggplot(data_plot, aes(x = period, fill = djia_vola, y = djia_vola)) +
+    geom_area(fill = "#8DD3C7", color = "#1B9E77") +
+    #geom_line() +
     xlab("aggregation horizon") + 
     ylab("DJIA volatility") +
     coord_cartesian(ylim = c(min(data_plot$djia_vola), max(data_plot$djia_vola)),
                     xlim = c(time_frame[1], tail(time_frame,1))) +
     theme_classic()
   
-    #xlim(time_frame[1], tail(time_frame,1)) +
-    #ylim(min(data_plot$djia_vola) %>% round(2), max(data_plot$djia_vola) %>% round(2)) +
 }
 
 # descriptive plots
-plot_descriptives_quarterly <- function(data_stock, mean_type, data_gdp) {
+
+plot_descriptives_quarterly <- function(data_stock, data_gdp) {
   
-  data_djia <- djia_prepare_quarterly(data_stock, mean_type) %>% 
+  data_djia <- data_stock %>% tq_transmute(mutate_fun = to.quarterly) %>% 
     select(date, adjusted)
   
-  data_gdp <- gdp %>% tq_transmute(mutate_fun = to.quarterly)
+  data_gdp <- data_gdp %>% tq_transmute(mutate_fun = to.quarterly)
   
   data_plot <- left_join(data_gdp, data_djia) %>% 
     rename("GDP in billion dollar"  = price, "DJIA price" = adjusted) %>% 

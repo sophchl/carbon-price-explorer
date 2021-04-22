@@ -27,58 +27,119 @@ ui <- fluidPage(
     # Sidebar with a slider input for number of bins 
     sidebarLayout(position = "right",
                   
-        sidebarPanel(p("Placeholder to provide some explanation"),
-                     em("please wait for the graphics to load (progress displayed in bottom right corner)")
+        sidebarPanel(p("Placeholder to provide some explanation")
                      #sliderInput("slider_time2",
-                     #            label = h4("Select the aggregation range for volatility of quarterly returns"),
+                     #            label = "Select the aggregation range for volatility of quarterly returns",
                      #            min = 5, max = 300, value = c(5,120),
                      #),
                      
                      #selectInput("select_vola",
-                     #            label = h4("How to calculate the volatility"),
+                     #            label = "How to calculate the volatility",
                      #            choices = list("rolling", "non-overlapping"),
                      #            selected = "rolling")
                      
         ),
         
-        mainPanel(## Input variables: DJIA and GDP
+        mainPanel(em("please wait for the graphics to load (progress displayed in bottom right corner)"),
+                  
+                  # Input variables
+                  
+                  ## GDP and DJIA absolute value
                   h3("Graphs of input variables"),
-                  strong("DJIA price and GDP (USA) Timeline"), em("(quarterly data)"),
+                  h4("DJIA price and GDP Timeline", em("(quarterly data)")),
                   plotOutput("price_plot"),
-                  strong("GDP scenarios"), em("(quarterly and five-year data)"),
+                  h4("GDP scenarios", em("(quarterly and five-year data)")),
                   plotOutput("gdp_plot"),
                   
-                  ## Market risk
-                  h3("Risk"),
-                  sliderInput("slider_time_daily",
-                              label = h4("Select the aggregation horizon"),
-                              min = 5, max = 300, value = c(5,50),
-                  ),
-                  strong("Market risk (daily)"), em("(daily djia closing price volatility)"),
-                  plotOutput("vola_plot_daily"),
-                  sliderInput("slider_time_quarterly",
-                              label = h4("Select the aggregation horizon"),
-                              min = 5, max = 135, value = c(5,50),
-                  ),
-                  strong("Market risk (quarterly)"), em("(quarterly djia closing price volatility)"),
-                  plotOutput("vola_plot_quarterly"),
-                  
-                  ## Including GDP Scenario in market risk
-                  h3("Including GDP Forecast in Market risk"),
-                  strong("Correlation GDP and DJIA"), em("quarterly djia closing price and gdp data"),
-                  plotOutput("regression_plot"),
-                  verbatimTextOutput("regression_summary"),
-                  
-                  
-                  
-                  ## DJIA risk and returns
-                  h3("Stock Returns"),
+                  ## DJIA returns
+                  h4("DJIA Closing Price Returns", em("(daily data)")),
                   selectInput("select_returns",
-                              label = h4("How to calculate the returns"),
+                              label = "How to calculate the returns",
                               choices = list("arithmetic", "log"),
-                              selected = "arithmetic"),
-                  strong("DJIA returns"), em("(daily data)"),
+                              selected = "arithmetic"
+                  ),
                   plotOutput("return_plot"),
+                  
+                  # Market risk
+                  h3("Market Risk"),
+                  selectInput("select_volatility_aggregation",
+                              label = "Select the volatility aggregation level",
+                              choices = list("Quarterly volatiltiy" = "volatility_quarterly",
+                                             "Daily volatility" = "volatility_daily"),
+                              selected = "volatility_quarterly"
+                  ),
+                  
+                  ## Daily analysis
+                  conditionalPanel(
+                      condition = "input.select_volatility_aggregation == 'volatility_daily'",
+                      sliderInput("slider_time_daily",
+                                  label = "Select the time horizon",
+                                  min = 5, max = 300, value = c(5,50),
+                      ),
+                      
+                      ### plot volatility
+                      h4("Market risk (daily)", em("(daily djia closing price volatility)")),
+                      plotOutput("vola_plot_daily"),
+                      
+                      ### message
+                      div("Analysis for daily data not done yet.", style = "color:blue"),
+                  ),
+                  
+                  ## Quarterly analysis
+                  conditionalPanel(
+                      condition = "input.select_volatility_aggregation == 'volatility_quarterly'",
+                      
+                      ### plot volatility
+                      sliderInput("slider_time_quarterly",
+                                  label = "Select the time horizon",
+                                  min = 5, max = 135, value = c(5,50),
+                      ),
+                      h4("Market risk", em("(quarterly djia closing price volatility)")),
+                      plotOutput("vola_plot_quarterly"),
+                      
+                      # Including GDP Fprecast in Market Risk
+                      h3("Including GDP Forecast in Market risk"),
+                      selectInput("select_data_type", 
+                                  label = "Select what data to work with",
+                                  choices = list("GDP Growth and DJIA Returns" = "gdp_growth",
+                                                 "GDP Absolute and DJIA Prices" = "gdp_absolute"),
+                                  selected = "gdp_growth"
+                      ),
+                      
+                      ## absolute data
+                      conditionalPanel(
+                          condition = "input.select_data_type == 'gdp_absolute'",
+                          
+                          ### regression results
+                          h4("Correlation GDP and DJIA Price", em("(quarterly data)")),
+                          plotOutput("regression_plot"),
+                          verbatimTextOutput("regression_summary"),
+                          
+                          ### message
+                          div("Analysis for absolute GDP and DJIA data not done yet.", style = "color:blue"),
+                          
+                      ),
+                      
+                      ## growth data
+                      conditionalPanel(
+                          condition = "input.select_data_type == 'gdp_growth'",
+                          selectInput("select_outlier",
+                                      label = "Remove Covid Outlier?",
+                                      choices = list("yes" = TRUE, 
+                                                     "no" = FALSE),
+                                      selected = "yes"),
+                          
+                          #### regression results
+                          h4("Correlation GDP growth and DJIA returns", em("(quarterly data)")),
+                          plotOutput("regression_growth_plot"),
+                          verbatimTextOutput("regression_growth_summary"),
+                          
+                          ### message
+                          div("Analysis for growth GDP and DJIA data not done yet.", style = "color:blue"),
+                          
+                      ),
+                      
+                  ),
                   
                   ## Sources
                   h3("Sources"),
@@ -113,6 +174,14 @@ server <- function(input, output) {
     
     output$regression_summary <- renderPrint({
         my_regression(djia, gdp)[[2]]
+    })
+    
+    output$regression_growth_plot <- renderPlot({
+        my_regression_growth(djia, gdp, input$select_outlier)[[1]]
+    })
+    
+    output$regression_growth_summary <- renderPrint({
+        my_regression_growth(djia, gdp, input$select_outlier)[[2]]
     })
     
     output$return_plot <- renderPlot({

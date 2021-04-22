@@ -104,7 +104,7 @@ plot_descriptives_quarterly <- function(data_stock, data_gdp) {
   
   data_gdp <- data_gdp %>% tq_transmute(mutate_fun = to.quarterly)
   
-  data_plot <- left_join(data_gdp, data_djia) %>% 
+  data_plot <- left_join(data_gdp, data_djia, by = "date") %>% 
     rename("GDP in billion dollar"  = price, "DJIA price" = adjusted) %>% 
     gather(key = "variable", value = "value", -date)
   
@@ -221,26 +221,34 @@ my_regression <- function(data_djia, data_gdp) {
   
 }
 
-my_regression_growth <- function(data_djia, data_gdp) {
+my_regression_growth <- function(data_djia, data_gdp, remove_outlier) {
   
   data_djia <- data_djia %>% 
     tq_transmute(select = c(date, open, high, low, close),
                  mutate_fun = to.quarterly) %>% 
-    select(c("date", "close"))
+    mutate(return = (close - lag(close))/lag(close)) %>% 
+    select(c("date", "return"))
   
   data_gdp <- data_gdp %>% 
     mutate(date = as.yearqtr(date)) %>% 
-    select(c("date", "price"))
+    mutate(growth = (price - lag(price))/lag(price)) %>% 
+    select(c("date", "growth")) 
   
-  data_plot <- inner_join(data_djia, data_gdp, by = "date")
+  if(remove_outlier == TRUE){
+    data_gdp <- data_gdp %>% 
+      filter(growth <= 0.05 & growth >= -0.05)
+  }
   
-  reg_plot <- ggplot(data_plot, aes(x = price, y = close)) +
+  data_plot <- right_join(data_djia, data_gdp, by = "date") %>% 
+    slice(-1)
+  
+  reg_plot <- ggplot(data_plot, aes(x = growth, y = return)) +
     geom_smooth(method = "lm", formula = "y ~ x") +
     geom_point(color = "#8c8c8c") + 
-    xlab("GDP") + ylab("DJIA Close") +
+    xlab("GDP growth") + ylab("DJIA return") +
     theme_classic()
   
-  reg_model <- lm(data_plot$close ~ data_plot$price) %>% 
+  reg_model <- lm(data_plot$return ~ data_plot$growth) %>% 
     summary()
   
   return(list(reg_plot, reg_model))

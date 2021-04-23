@@ -3,25 +3,6 @@
 
 ## data transformations ------------------
 
-# prepare djia data
-
-djia_prepare_daily <- function(data, mean_type)  {
-  # prepares djia data for daily analysis
-  # input: data: djia as loaded by tidyquant, mean_type: "arithmetic" or "log"
-  # output: djia with columns date (ymd), open, high, low, close, volume, adjusted, daily.return
-  
-  data_out <- data %>%
-    tq_mutate(select = adjusted,
-              mutate_fun = periodReturn,
-              period = "daily",
-              type = mean_type)  %>%
-    mutate(date = ymd(date))  %>%
-    select(-symbol)
-  
-  return(data_out)
-  
-}
-
 # prepare scenario data
 
 scenario_prepare <- function(data) {
@@ -37,31 +18,21 @@ scenario_prepare <- function(data) {
 
 # calculate a function that calculates volatility for selected days
 
-my_vola_fun <- function(data, time_frame) {
+my_vola_fun_progress <- function(data, time_frame, return_period) {
   # calculates volatility for a vector of days (loop so not super fast)
   # input: data: stock price data with at least open, high, low, close columns
   # input: time_frame: vector that holds the aggregation periods to calculate volatility (format c(start:end))
   # output: tibble with period and vola
   
-  vola_vector <- c()
-  for (i in seq_along(time_frame)){
-    return_vola <- volatility(data[, c("open", "high", "low", "close")],
-                              n = time_frame[i], calc = "close") %>%
-      mean(na.rm = T)
-    
-    vola_vector[i] <- return_vola
+  if(return_period == "quarterly"){
+    data <- data %>% 
+      tq_transmute(select = c(date, open, high, low, close, adjusted),
+                   mutate_fun = to.quarterly)
   }
-  vola_data <- tibble(period = time_frame,
-                      djia_vola = vola_vector)
   
-  return(vola_data)
-}
-
-my_vola_fun_progress <- function(data, time_frame) {
-  # calculates volatility for a vector of days (loop so not super fast)
-  # input: data: stock price data with at least open, high, low, close columns
-  # input: time_frame: vector that holds the aggregation periods to calculate volatility (format c(start:end))
-  # output: tibble with period and vola
+  if(return_period == "daily"){
+    data <- data
+  }
   
   vola_vector <- c()
   
@@ -92,6 +63,7 @@ my_vola_fun_progress <- function(data, time_frame) {
   
   return(vola_data)
 }
+
 
 ## plots ----------------------
 
@@ -140,7 +112,11 @@ plot_descriptives_gdp <- function(data_historic, data_scenario) {
 
 plot_descriptives_return <- function(data_stock, mean_type) {
   
-  data_plot <- djia_prepare_daily(data_stock, mean_type)
+  data_plot <- data_stock %>% 
+    tq_mutate(select = adjusted,
+              mutate_fun = periodReturn,
+              period = "daily",
+              type = mean_type)
   
   ggplot(data_plot, aes(x = date, y = daily.returns)) +
     geom_line(color = "#8c8c8c") + #"#1B9E77"
@@ -152,48 +128,47 @@ plot_descriptives_return <- function(data_stock, mean_type) {
 
 # volatility plots
 
-plot_djia_volatility_daily <- function(data, time_frame) {
+plot_djia_volatility <- function(data, time_frame, return_period) {
   # creates a plot of volatility against aggregation period
-  # input: djia raw data, mean_type ("log"/"arithmetic"), time_frame
+  # input: djia raw data, mean_type ("log"/"arithmetic"), time_frame, return_period: daily or quarterly
   # output: ggplot
   # note: mean_type does not matter here
   
   data_plot <- data %>% 
-    my_vola_fun_progress(time_frame)
+    my_vola_fun_progress(time_frame, return_period)
   
   ggplot(data_plot, aes(x = period, fill = djia_vola, y = djia_vola)) +
     geom_area(fill = "#8DD3C7", color = "#1B9E77") +
     #geom_line() +
-    xlab("aggregation horizon (days)") + 
-    ylab("DJIA closing price volatility") +
+    xlab(paste("aggregation horizon ", "(", return_period, ")", sep = "")) + 
+    ylab("sd DJIA returns") +
     coord_cartesian(ylim = c(min(data_plot$djia_vola), max(data_plot$djia_vola)),
                     xlim = c(time_frame[1], tail(time_frame,1))) +
     theme_classic()
 
 }
 
-plot_djia_volatility_quarterly <- function(data, time_frame) {
+plot_djia_volatility2 <- function(data_all, data_crisis, time_frame, return_period) {
   # creates a plot of volatility against aggregation period
-  # input: djia raw data, mean_type, time_frame
+  # input: djia raw data, mean_type ("log"/"arithmetic"), time_frame, return_period: daily or quarterly
   # output: ggplot
+  # note: mean_type does not matter here
   
   data_plot <- data %>% 
-    tq_transmute(select = c(date, open, high, low, close),
-                 mutate_fun = to.quarterly) %>% 
-    my_vola_fun_progress(time_frame)
+    my_vola_fun(time_frame, return_period)
   
   ggplot(data_plot, aes(x = period, fill = djia_vola, y = djia_vola)) +
     geom_area(fill = "#8DD3C7", color = "#1B9E77") +
     #geom_line() +
-    xlab("aggregation horizon (quarters)") + 
-    ylab("DJIA volatility") +
+    xlab(paste("aggregation horizon ", "(", return_period, ")", sep = "")) + 
+    ylab("sd DJIA returns") +
     coord_cartesian(ylim = c(min(data_plot$djia_vola), max(data_plot$djia_vola)),
                     xlim = c(time_frame[1], tail(time_frame,1))) +
     theme_classic()
   
 }
 
-
+# regression plots and summary
 
 my_regression <- function(data_djia, data_gdp) {
   

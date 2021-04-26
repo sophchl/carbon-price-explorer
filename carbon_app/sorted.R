@@ -160,25 +160,51 @@ scenario_data <- scenarios %>%
 
 # problem - will have 20 times the same return
 
-# alternative: find years with big drops in GDP and see how returns behaved in this period
-test <- gdp %>%
-  tq_mutate(select = price, 
-            mutate_fun = quarterlyReturn) %>% 
-  select(quarterly.returns) 
+# alternative: analyse quarters with big gdp drop separately
+my_quantiles <- c(0.05, 0.1, 0.2, 0.3, 0.4, 0.5)
+gdp_quantiles <- gdp %>%
+  tq_mutate(select = price, mutate_fun = quarterlyReturn) %>% 
+  filter(quarterly.returns < 0) %>% 
+  summarize(gdp_quantile = quantile(quarterly.returns, probs = my_quantiles),
+            for_quantile = my_quantiles)
 
-gdp_quantiles <- quantile(test$quarterly.returns, probs = c(0,0.05, 0.1))
-
+selected_quantile <- 0.3
 gdp_drops <- gdp %>% 
-  tq_mutate(select = price, 
-            mutate_fun = quarterlyReturn) %>% 
-  filter(quarterly.returns <= gdp_quantiles[2]) 
+  tq_mutate(select = price, mutate_fun = quarterlyReturn) %>% 
+  filter(quarterly.returns <= gdp_quantiles %>% filter(for_quantile == selected_quantile) %>% pull(gdp_quantile)) %>% 
+  mutate(year_quarter = as.yearqtr(date))
 
-dates_gdp_drops1 <- seq(gdp_drops$date[1], by = "day", length.out = 300)
-
-filtered_djia1 <- djia %>% 
-  filter(date %in% dates_gdp_drops1)
+djia_new <- djia %>% 
+  mutate(in_loss = as.yearqtr(date) %in% gdp_drops$year_quarter)
 
 ### PLOTS ----------
+
+plot_djia_volatility_separate <- function(data, time_frame, return_period) {
+  # creates a plot of volatility against aggregation period
+  # input: djia raw data, mean_type ("log"/"arithmetic"), time_frame, return_period: daily or quarterly
+  # output: ggplot
+  # note: mean_type does not matter here
+  
+  data_plot_loss <- data %>% 
+    filter(in_loss == TRUE) %>% 
+    my_vola_fun(time_frame, return_period)
+  
+  data_plot_no_loss <- data %>% 
+    filter(in_loss == FALSE) %>% 
+    my_vola_fun(time_frame, return_period)
+  
+  data_plot <- data_plot_loss
+  
+  ggplot(data_plot, aes(x = period, fill = djia_vola, y = djia_vola)) +
+    geom_area(fill = "#8DD3C7", color = "#1B9E77") +
+    #geom_line() +
+    xlab(paste("aggregation horizon ", "(", return_period, ")", sep = "")) + 
+    ylab("sd DJIA returns") +
+    coord_cartesian(ylim = c(min(data_plot$djia_vola), max(data_plot$djia_vola)),
+                    xlim = c(time_frame[1], tail(time_frame,1))) +
+    theme_classic()
+  
+}
 
 plot_djia_volatility_quarterly <- function(data, time_frame) {
   # creates a plot of volatility against aggregation period

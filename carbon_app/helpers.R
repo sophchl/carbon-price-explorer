@@ -148,26 +148,6 @@ plot_djia_volatility <- function(data, time_frame, return_period) {
 
 }
 
-plot_djia_volatility2 <- function(data_all, data_crisis, time_frame, return_period) {
-  # creates a plot of volatility against aggregation period
-  # input: djia raw data, mean_type ("log"/"arithmetic"), time_frame, return_period: daily or quarterly
-  # output: ggplot
-  # note: mean_type does not matter here
-  
-  data_plot <- data %>% 
-    my_vola_fun(time_frame, return_period)
-  
-  ggplot(data_plot, aes(x = period, fill = djia_vola, y = djia_vola)) +
-    geom_area(fill = "#8DD3C7", color = "#1B9E77") +
-    #geom_line() +
-    xlab(paste("aggregation horizon ", "(", return_period, ")", sep = "")) + 
-    ylab("sd DJIA returns") +
-    coord_cartesian(ylim = c(min(data_plot$djia_vola), max(data_plot$djia_vola)),
-                    xlim = c(time_frame[1], tail(time_frame,1))) +
-    theme_classic()
-  
-}
-
 # regression plots and summary
 
 my_regression <- function(data_djia, data_gdp) {

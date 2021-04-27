@@ -1,4 +1,6 @@
 # scenarios <- read.csv(file = "carbon_app/data/cd-links-gdp-us.csv")
+# djia <- tq_get("DJIA", get = "stock.prices", from = "1930-01-01")
+# gdp <- tq_get("GDP", get = "economic.data", from = "1930-01-01")
 # app_diretory: 'C:/Users/Sophia/Dropbox/01_Studium/04_projects/CarbonPriceExplorer/carbon_app'
 
 ## data transformations ------------------
@@ -16,7 +18,7 @@ scenario_prepare <- function(data) {
   return(data)
 }
 
-# calculate a function that calculates volatility for selected days
+# calculate volatility for selected days
 
 my_vola_fun_progress <- function(data, time_frame, return_period) {
   # calculates volatility for a vector of days (loop so not super fast)
@@ -64,6 +66,21 @@ my_vola_fun_progress <- function(data, time_frame, return_period) {
   return(vola_data)
 }
 
+# calculate GDP quantiles
+
+quantile_analysis <- function(data_gdp){
+  # returns tibble with GDP quantiles
+  
+  my_quantiles <- c(0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1)
+  gdp_quantiles <- data_gdp %>%
+    tq_mutate(select = price, mutate_fun = quarterlyReturn) %>% 
+    filter(quarterly.returns < 0) %>% 
+    summarize(for_quantile = my_quantiles,
+              gdp_quantile = quantile(quarterly.returns, probs = my_quantiles))
+  
+  return(gdp_quantiles %>% rename("GDP loss" = gdp_quantile, "p-quantile" = for_quantile))
+  
+}
 
 ## plots ----------------------
 
@@ -148,6 +165,54 @@ plot_djia_volatility <- function(data, time_frame, return_period) {
 
 }
 
+plot_djia_volatility_separate <- function(data_djia, data_gdp, selected_quantile, time_frame, return_period) {
+  
+  # calculate GDP quantiles
+  gdp_quantiles <- quantile_analysis(data_gdp) %>% 
+    rename(gdp_quantile = "GDP loss", for_quantile = "p-quantile")
+  
+  # find quarters with GDP losses lower than selected quantile
+  gdp_drops <- data_gdp %>% 
+    tq_mutate(select = price, mutate_fun = quarterlyReturn) %>% 
+    filter(quarterly.returns <= gdp_quantiles %>% 
+             filter(for_quantile == selected_quantile) %>% 
+             pull(gdp_quantile)) %>% 
+    mutate(year_quarter = as.yearqtr(date)) 
+  
+  # create two separate data frames for loss and non-loss quarters
+  filter_function <- function(data_djia, gdp_drops, boolean_in_loss){
+    data_djia <- data_djia %>% 
+      mutate(in_loss = as.yearqtr(date) %in% gdp_drops$year_quarter) %>% 
+      filter(in_loss == boolean_in_loss) %>% 
+      group_by(as.yearqtr(date)) %>% 
+      filter(n() > 50) %>% 
+      do(quarter_vola = my_vola_fun_progress(., time_frame, return_period)) %>% 
+      unnest(quarter_vola) %>% 
+      group_by(period) %>% 
+      summarize(djia_vola = mean(djia_vola))
+    
+    return(data_djia)
+  }
+  
+  
+  data_plot_loss <- filter_function(data_djia, gdp_drops, TRUE)
+  data_plot_no_loss <- filter_function(data_djia, gdp_drops, FALSE)
+  
+  # plot both curves
+  ggplot() +
+    geom_area(data = data_plot_loss, aes(x = period, y = djia_vola, fill = "in loss period"), 
+              color = "#dcedc1", alpha = 0.5) +
+    geom_area(data = data_plot_no_loss, aes(x = period, y = djia_vola, fill = "outside loss period"), 
+              color = "#a8e6cf", alpha = 0.5) +
+    xlab(paste("aggregation horizon ", "(", return_period, ")", sep = "")) + 
+    ylab("sd DJIA returns") +
+    coord_cartesian(ylim = c(min(data_plot_no_loss$djia_vola), max(data_plot_loss$djia_vola)),
+                    xlim = c(time_frame[1], tail(time_frame,1))) +
+    scale_fill_manual(name = "Legend", values = c("#dcedc1", "#a8e6cf")) +
+    theme_classic()
+  
+}
+
 # regression plots and summary
 
 my_regression <- function(data_djia, data_gdp) {
@@ -169,7 +234,7 @@ my_regression <- function(data_djia, data_gdp) {
     xlab("GDP") + ylab("DJIA Close") +
     theme_classic()
   
-  reg_model <- lm(data_plot$close ~ data_plot$price) %>% 
+  reg_model <- lm(close ~ price, data = data_plot) %>% 
     summary()
   
   return(list(reg_plot, reg_model))
@@ -203,7 +268,7 @@ my_regression_growth <- function(data_djia, data_gdp, remove_outlier) {
     xlab("GDP growth") + ylab("DJIA return") +
     theme_classic()
   
-  reg_model <- lm(data_plot$return ~ data_plot$growth) %>% 
+  reg_model <- lm(return ~ growth, data = data_plot) %>% 
     summary()
   
   return(list(reg_plot, reg_model))

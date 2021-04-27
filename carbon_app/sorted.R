@@ -4,7 +4,7 @@ library(caTools)
 
 ### VOLATILITY 
 
-## Volatility not selective
+## Volatility not selective (don't choose between daily and quarterly)
 
 sliderInput("slider_time_daily",
             label = "Select the time horizon",
@@ -13,7 +13,7 @@ sliderInput("slider_time_daily",
 h4("Market risk", em("(djia daily return volatility)")),
 plotOutput("vola_plot_daily"),
 
-## Volatility selective 
+## Volatility selective (choose between daily and quarterly)
 
 selectInput("select_volatility_aggregation",
             label = "Select the volatility aggregation level",
@@ -57,7 +57,7 @@ conditionalPanel(
 
 ### HELPERS ------------
 
-# prepare djia data
+# prepare djia data (took it out because it is so short, just do it manually whenever I need it)
 
 djia_prepare_daily <- function(data, mean_type)  {
   # prepares djia data for daily analysis
@@ -78,6 +78,7 @@ djia_prepare_daily <- function(data, mean_type)  {
 
 # vola functions 
 
+# should be the same as the vola function in the helpers.R but without progress tracking, so that I can use it easier here
 my_vola_fun <- function(data, time_frame, return_period) {
   # calculates volatility for a vector of days (loop so not super fast)
   # input: data: stock price data with at least open, high, low, close columns
@@ -108,6 +109,7 @@ my_vola_fun <- function(data, time_frame, return_period) {
   return(vola_data)
 }
 
+# check if manually calculating the volatility gives a similar result than R volatility() function
 my_vola_fun_manual <- function(data, time_frame, return_period) {
   # calculates volatility for a vector of days (loop so not super fast)
   # input: data: stock price data with at least open, high, low, close columns
@@ -146,66 +148,83 @@ my_vola_fun_manual <- function(data, time_frame, return_period) {
   return(vola_data)
 }
 
-# calculate quarterly returns from GDP scenarios
-
-scenario_data <- scenarios %>% 
-  scenario_prepare() %>% 
-  select(-Model, - Region, - Unit, -Variable) %>%
-       gather(key = "date", value = "value", - Scenario) %>% 
-       mutate(date = ymd(date, truncated = 2L)) %>% 
-  filter(Scenario == "NPi2020_400") %>% 
-  tq_mutate(select = value,
-            mutate_fun = quarterlyReturn,
-            type = "log")
+# calculate quarterly returns from GDP scenarios (unfinished)
+scenario_returns <- function(scenario_data){
+  scenario_data <- scenarios %>% 
+    scenario_prepare() %>% 
+    select(-Model, - Region, - Unit, -Variable) %>%
+    gather(key = "date", value = "value", - Scenario) %>% 
+    mutate(date = ymd(date, truncated = 2L)) %>% 
+    filter(Scenario == "NPi2020_400") %>% 
+    tq_mutate(select = value,
+              mutate_fun = quarterlyReturn,
+              type = "log")
+}
 
 # problem - will have 20 times the same return
 
-# alternative: analyse quarters with big gdp drop separately
-my_quantiles <- c(0.05, 0.1, 0.2, 0.3, 0.4, 0.5)
-gdp_quantiles <- gdp %>%
-  tq_mutate(select = price, mutate_fun = quarterlyReturn) %>% 
-  filter(quarterly.returns < 0) %>% 
-  summarize(gdp_quantile = quantile(quarterly.returns, probs = my_quantiles),
-            for_quantile = my_quantiles)
-
-selected_quantile <- 0.3
-gdp_drops <- gdp %>% 
-  tq_mutate(select = price, mutate_fun = quarterlyReturn) %>% 
-  filter(quarterly.returns <= gdp_quantiles %>% filter(for_quantile == selected_quantile) %>% pull(gdp_quantile)) %>% 
-  mutate(year_quarter = as.yearqtr(date))
-
-djia_new <- djia %>% 
-  mutate(in_loss = as.yearqtr(date) %in% gdp_drops$year_quarter)
+# alternative: analyze quarters with big GDP drop separately
 
 ### PLOTS ----------
 
-plot_djia_volatility_separate <- function(data, time_frame, return_period) {
-  # creates a plot of volatility against aggregation period
-  # input: djia raw data, mean_type ("log"/"arithmetic"), time_frame, return_period: daily or quarterly
-  # output: ggplot
-  # note: mean_type does not matter here
+# set parameters manually
+data_djia <- djia
+data_gdp <- gdp
+selected_quantile <- 0.5
+time_frame <- c(5:50)
+return_period <- "daily"
+
+# same as in the helpers.R but with non-progress tracking volatility function
+# careful: quite slow
+plot_djia_volatility_separate <- function(data_djia, data_gdp, selected_quantile, time_frame, return_period) {
   
-  data_plot_loss <- data %>% 
-    filter(in_loss == TRUE) %>% 
-    my_vola_fun(time_frame, return_period)
+  # calculate GDP quantiles
+  gdp_quantiles <- quantile_analysis(data_gdp) %>% 
+    rename(gdp_quantile = "GDP loss", for_quantile = "p-quantile")
   
-  data_plot_no_loss <- data %>% 
-    filter(in_loss == FALSE) %>% 
-    my_vola_fun(time_frame, return_period)
+  # find quarters with GDP losses lower than selected quantile
+  gdp_drops <- data_gdp %>% 
+    tq_mutate(select = price, mutate_fun = quarterlyReturn) %>% 
+    filter(quarterly.returns <= gdp_quantiles %>% 
+             filter(for_quantile == selected_quantile) %>% 
+             pull(gdp_quantile)) %>% 
+    mutate(year_quarter = as.yearqtr(date)) 
   
-  data_plot <- data_plot_loss
+  # create two separate data frames for loss and non-loss quarters
+  filter_function <- function(data_djia, gdp_drops, boolean_in_loss){
+    data_djia <- data_djia %>% 
+        mutate(in_loss = as.yearqtr(date) %in% gdp_drops$year_quarter) %>% 
+        filter(in_loss == boolean_in_loss) %>% 
+        group_by(as.yearqtr(date)) %>% 
+        filter(n() > 50) %>% 
+        do(quarter_vola = my_vola_fun(., time_frame, return_period)) %>% 
+        unnest(quarter_vola) %>% 
+        group_by(period) %>% 
+        summarize(djia_vola = mean(djia_vola))
+      
+      return(data_djia)
+    }
   
-  ggplot(data_plot, aes(x = period, fill = djia_vola, y = djia_vola)) +
-    geom_area(fill = "#8DD3C7", color = "#1B9E77") +
-    #geom_line() +
+  
+  data_plot_loss <- filter_function(data_djia, gdp_drops, TRUE)
+  data_plot_no_loss <- filter_function(data_djia, gdp_drops, FALSE)
+  
+  # plot both curves
+  ggplot() +
+    geom_area(data = data_plot_loss, aes(x = period, y = djia_vola, fill = "in loss period"), 
+              color = "#dcedc1", alpha = 0.5) +
+    geom_area(data = data_plot_no_loss, aes(x = period, y = djia_vola, fill = "outside loss period"), 
+              color = "#a8e6cf", alpha = 0.5) +
     xlab(paste("aggregation horizon ", "(", return_period, ")", sep = "")) + 
     ylab("sd DJIA returns") +
-    coord_cartesian(ylim = c(min(data_plot$djia_vola), max(data_plot$djia_vola)),
+    coord_cartesian(ylim = c(min(data_plot_no_loss$djia_vola), max(data_plot_loss$djia_vola)),
                     xlim = c(time_frame[1], tail(time_frame,1))) +
+    scale_fill_manual(name = "Legend", values = c("#dcedc1", "#a8e6cf")) +
     theme_classic()
   
 }
 
+# don't need that because I have one volatility function in which you can select if you want quarterly or daily
 plot_djia_volatility_quarterly <- function(data, time_frame) {
   # creates a plot of volatility against aggregation period
   # input: djia raw data, mean_type, time_frame
@@ -226,3 +245,25 @@ plot_djia_volatility_quarterly <- function(data, time_frame) {
     theme_classic()
   
 }
+
+## old code -----------
+
+data_plot_loss <- data_djia %>%  
+  mutate(in_loss = as.yearqtr(date) %in% gdp_drops$year_quarter) %>% 
+  filter(in_loss == TRUE) %>% 
+  group_by(as.yearqtr(date)) %>% 
+  filter(n() > 50) %>% 
+  do(quarter_vola = my_vola_fun(., time_frame, return_period)) %>% 
+  unnest(quarter_vola) %>% 
+  group_by(period) %>% 
+  summarize(djia_vola = mean(djia_vola))
+
+data_djia %>% 
+  mutate(in_loss = as.yearqtr(date) %in% gdp_drops$year_quarter) %>% 
+  filter(in_loss == FALSE) %>% 
+  group_by(as.yearqtr(date)) %>%
+  filter(n() > 50) %>% 
+  do(quarter_vola = my_vola_fun(., time_frame, return_period)) %>% 
+  unnest(quarter_vola) %>% 
+  group_by(period) %>% 
+  summarize(djia_vola = mean(djia_vola))

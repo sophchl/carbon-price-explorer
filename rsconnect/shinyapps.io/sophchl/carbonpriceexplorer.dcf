@@ -1,0 +1,11 @@
+name: carbonpriceexplorer
+title:
+username:
+account: sophchl
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4043895
+bundleId: 4528742
+url: https://sophchl.shinyapps.io/carbonpriceexplorer/
+when: 1619594565.75012
+lastSyncTime: 1619594565.75012

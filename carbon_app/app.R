@@ -26,22 +26,25 @@ ui <- fluidPage(
     # Sidebar with a slider input for number of bins 
     sidebarLayout(position = "right",
                   
-        sidebarPanel(p("Placeholder to provide some explanation"),
+        sidebarPanel(# Select data
+                    dateRangeInput("slider_data_range",
+                           label = "Select the date range for the analysis",
+                           start = "1930-01-01", end = today(),
+                           format = "yyyy-mm-dd"),
+                    em("Note: If a date later than today is chosen the date range will download until today autmatically."),
+                    em("Please wait for the graphics to load (progress displayed in bottom right corner)."),
         ),
         
-        mainPanel(# Select data
-                  
-                  dateRangeInput("slider_data_range",
-                                 label = "Select the date range for the analysis",
-                                 start = "1930-01-01", end = today(),
-                                 format = "yyyy-mm-dd"),
-                  em("Note: If a date later than today is chosen the date range will download until today autmatically."),
-                  em("Please wait for the graphics to load (progress displayed in bottom right corner)."),
-                  
-                  # Input variables
+        mainPanel(# Input variables
                   
                   ## GDP and DJIA absolute value
                   h3("Graphs of input variables"),
+                  p("The following graphs show the data available for analysis"),
+                  tags$ul(
+                      tags$li(strong("Dow Jones Industrial Average (DJIA)"), ": Daily data of DJIA, returns are calculated both as logarithmic and arithmetic, prices are inflation-adjusted. To compare GDP and DJIA prices, DJIA was aggregated to quarterly data."),
+                      tags$li(strong("Gross Domestic Product (GDP)"), ": Quarterly data of GDP in billions of dollars, seasonally adjusted annual rate"),
+                      tags$li(strong("Scenario Data"), ": Scenario data analysing the effect of climate change (mitigation) on GDP, using the integrated assessment model", em("Remind 1.7 - MAgPIE 3.0"), tags$a(href = "https://data.ene.iiasa.ac.at/cd-links/#/docs", "(Model documentation)"), "for six different scenarios (Explanation of scenarios at the end)."), 
+                  ),
                   h4("DJIA price and GDP Timeline", em("(quarterly data)")),
                   plotOutput("price_plot"),
                   h4("GDP scenarios", em("(quarterly and five-year data)")),
@@ -58,6 +61,7 @@ ui <- fluidPage(
                   
                   # Market risk
                   h3("Market Risk"),
+                  p("The following graph aggregates djia return volatility (daily or quarterly, depending on the input) and plots the standard deviation as a function of aggregation horizon."),
                   
                   selectInput("select_volatility_aggregation",
                               label = "Select the volatility aggregation level",
@@ -99,6 +103,8 @@ ui <- fluidPage(
                   
                   # Including GDP Forecast in Market Risk
                   h3("Relationship between GDP and DJIA"),
+                  h4("Correlation GDP growth and DJIA returns", em("(quarterly data)")),
+                  p("The following paragraph explores the relationship between GDP and DJIA. First correlation and regression are displayed for both GDP and DJIA prices and returns for quarterly data."),
                   selectInput("select_data_type", 
                               label = "Select what data to work with",
                               choices = list("GDP Growth and DJIA Returns" = "gdp_growth",
@@ -111,7 +117,6 @@ ui <- fluidPage(
                       condition = "input.select_data_type == 'gdp_absolute'",
                       
                       ### regression results
-                      h4("Correlation GDP and DJIA Price", em("(quarterly data)")),
                       plotOutput("regression_plot"),
                       verbatimTextOutput("regression_summary"),
                       
@@ -130,7 +135,6 @@ ui <- fluidPage(
                                   selected = "yes"),
                       
                       #### regression results
-                      h4("Correlation GDP growth and DJIA returns", em("(quarterly data)")),
                       strong("Correlation plot"), 
                       plotOutput("regression_growth_plot"),
                       strong("Regression results"),
@@ -143,6 +147,7 @@ ui <- fluidPage(
                   
                   ## comparison of vola in periods of calm and distress
                   h4("Compare return volatility in periods of market calm and distress"),
+                  p("The following section analyses the relationship between GDP losses and DJIA by plotting selecting the largest GDP losses and plotting DJIA return standard deviation separate for quarters where GDP losses exceed the selected quantile (in loss period) and quarters where GDP losses do not exceed the selected quantile or GDP increased (outside loss period)."),
                   strong("Table of GDP loss quantiles"),
                   dataTableOutput("table_gdp_quantiles"),
                   selectInput("select_quantile",
@@ -161,7 +166,27 @@ ui <- fluidPage(
                       plotOutput("vola_plot_separate"),
                   ),
                   
-                  ## Sources
+                  # Brief discussion
+                  h3("Discussion points"),
+                  tags$ul(
+                      tags$li("Integration of the scenario data: The scenario data from iiasa is at 5-year aggregation, and the variation in GDP between the scenarios is not very large, which has to be taken into account when integration the scenario data in the standard deviation plot, which is at daily or quarterly level."),
+                      tags$li("The correlation/regression results between GDP and DJIA are mostly strong for price data, which probably however mostly catches the positive trend of both variabels."),
+                      tags$li("Quarters with high GDP loss have an overall higher DJIA return volatility over all displayed aggregation horizons."),
+                  ),
+                  
+                  # Further notes
+                  h3("Further notes"),
+                  p("Scenarios (iiasa documentation):"),
+                  tags$ul(
+                      tags$li("INDCi: Intended Nationally Determined Contributions (INDC) scenario that implements the first round of INDCs until 2030 and extrapolates the implied effort beyond 2030"),
+                      tags$li("No Policy: Baseline scenario without any climate policy in place"),
+                      tags$li("NPi: National Policies implemented scenario includes currently implemented climate, energy and land policies and extrapolates the implied effort beyond the direction of the policies"),
+                      tags$li("NPI2020_1000: NPi scenario until 2020 with a transition to a globally cost-effective implementation of a carbon budget for the period 2011-2100 of 1000 GtCO2 afterwards, corresponding to staying below 2C at >66% through the 21st century"),
+                      tags$li("NPI2020_1600: NPi scenario until 2020 with a transition to a globally cost-effective implementation of a carbon budget for the period 2011-2100 of 1000 GtCO2 afterwards, corresponding to staying below 2C at >66% through the 21st century"),
+                      tags$li("NPI2020_400: NPi scenario until 2020 with a transition to a globally cost-effective implementation of a carbon budget for the period 2011-2100 of 400 GtCO2 afterwards, corresponding to a chance of >66% for staying below 1.5C in 2100"),
+                  ),
+                  
+                  # Sources
                   h3("Sources"),
                   uiOutput("tabs")
                   )

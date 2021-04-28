@@ -1,4 +1,5 @@
-library(caTools)
+# library(caTools)
+# update app: rsconnect::deployApp()
 
 ## APP -----------
 

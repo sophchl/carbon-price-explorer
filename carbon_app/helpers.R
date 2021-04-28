@@ -2,6 +2,7 @@
 # djia <- tq_get("DJIA", get = "stock.prices", from = "1930-01-01")
 # gdp <- tq_get("GDP", get = "economic.data", from = "1930-01-01")
 # app_diretory: 'C:/Users/Sophia/Dropbox/01_Studium/04_projects/CarbonPriceExplorer/carbon_app'
+# update app: rsconnect::deployApp()
 
 ## data transformations ------------------
 

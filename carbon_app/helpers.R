@@ -1,10 +1,53 @@
+## load data for test runs ------------------
+
 # scenarios <- read.csv(file = "carbon_app/data/cd-links-gdp-us.csv")
 # djia <- tq_get("DJIA", get = "stock.prices", from = "1930-01-01")
 # gdp <- tq_get("GDP", get = "economic.data", from = "1930-01-01")
+# time_frame <- c(5:50)
+
 # app_diretory: 'C:/Users/Sophia/Dropbox/01_Studium/04_projects/CarbonPriceExplorer/carbon_app'
 # update app: rsconnect::deployApp()
 
 ## data transformations ------------------
+
+# return and aggregation calculater
+
+data_prepare <- function(data, my_value, output_type, mean_type, my_period) {
+  # my_value: col name of data to be used, output_type: "return" or "absolute", my_period: "daily", "quarterly", "5-year")
+  
+  if (my_period == "5-year") {
+    my_k <- 5
+    my_period <- "yearly"
+  } else {
+    my_k <- 1
+  }
+  
+  if (output_type == "return") {
+    data_new <- data %>% 
+      tq_transmute(select = my_value,
+                   mutate_fun = periodReturn,
+                   period = my_period,
+                   k = my_k,
+                   type = mean_type)
+  } else if (output_type == "absolute") {
+    
+    if (my_period == "daily") {
+      my_period = "days"
+    } else if (my_period == "quarterly") {
+      my_period = "quarters"
+    } else if (my_period == "yearly") {
+      my_period = "years"
+    }
+    
+    data_new <- data %>% 
+      tq_transmute(select = my_value,
+                   mutate_fun = to_period,
+                   period = my_period,
+                   k = my_k)
+  }
+  
+  return(data_new)
+}
 
 # prepare scenario data
 
@@ -27,15 +70,8 @@ my_vola_fun_progress <- function(data, time_frame, return_period) {
   # input: time_frame: vector that holds the aggregation periods to calculate volatility (format c(start:end))
   # output: tibble with period and vola
   
-  if(return_period == "quarterly"){
-    data <- data %>% 
-      tq_transmute(select = c(date, open, high, low, close, adjusted),
-                   mutate_fun = to.quarterly)
-  }
-  
-  if(return_period == "daily"){
-    data <- data
-  }
+  data <- data_prepare(data, adjusted, "absolute", "whatever", return_period) %>% 
+    drop_na()
   
   vola_vector <- c()
   
@@ -48,8 +84,7 @@ my_vola_fun_progress <- function(data, time_frame, return_period) {
     for (i in seq_along(time_frame)){
       
       # add data in every step
-      return_vola <- volatility(data[, c("open", "high", "low", "close")],
-                                n = time_frame[i], calc = "close") %>%
+      return_vola <- volatility(data$adjusted, n = time_frame[i], calc = "close") %>%
         mean(na.rm = T)
       
       vola_vector[i] <- return_vola
@@ -61,6 +96,39 @@ my_vola_fun_progress <- function(data, time_frame, return_period) {
     
   })
   
+  vola_data <- tibble(period = time_frame,
+                      djia_vola = vola_vector)
+  
+  return(vola_data)
+}
+
+my_vola_fun2 <- function(data, return_period) {
+  # calculates volatility for a vector of days (loop so not super fast)
+  # input: data: stock price data with at least open, high, low, close columns
+  # input: time_frame: vector that holds the aggregation periods to calculate volatility (format c(start:end))
+  # output: tibble with period and vola
+  
+  data <- data_prepare(data, adjusted, "absolute", "whatever", return_period) %>% 
+    drop_na()
+  
+  if (return_period == "daily") {
+    my_factor <- 1/250
+    time_frame <- c(5:300)
+  } else if (return_period == "quarterly") {
+    my_factor <- 1/4
+    time_frame <- c(5:nrow(data)-1)
+  } else if (return_period == "5-year") {
+    my_factor <- 5
+    time_frame <- c(5:nrow(data)-1)
+  }
+  
+  vola_vector <- c()
+  for (i in seq_along(time_frame)){
+    return_vola <- volatility(data$adjusted[c(0:time_frame[i])], n = time_frame[i], calc = "close") %>%
+      tail(1)
+    
+    vola_vector[i] <- return_vola
+  }
   vola_data <- tibble(period = time_frame,
                       djia_vola = vola_vector)
   
@@ -95,7 +163,7 @@ plot_descriptives_quarterly <- function(data_stock, data_gdp) {
   data_gdp <- data_gdp %>% tq_transmute(mutate_fun = to.quarterly)
   
   data_plot <- left_join(data_gdp, data_djia, by = "date") %>% 
-    rename("GDP in billion dollar"  = price, "DJIA price" = adjusted) %>% 
+    rename("GDP in billion dollar" = price, "DJIA price" = adjusted) %>% 
     gather(key = "variable", value = "value", -date)
   
   ggplot(data = data_plot, aes(x = date, y = value, color = variable)) +
@@ -128,21 +196,18 @@ plot_descriptives_gdp <- function(data_historic, data_scenario) {
   
 }
 
-plot_descriptives_return <- function(data_stock, mean_type) {
+plot_descriptives_return <- function(data_stock, mean_type, my_period) {
+  # my_period: one of "daily", "quarterly", "5-year"
   
-  data_plot <- data_stock %>% 
-    tq_mutate(select = adjusted,
-              mutate_fun = periodReturn,
-              period = "daily",
-              type = mean_type)
+  data_plot <- data_prepare(data_stock, adjusted, "return", mean_type, my_period) %>% 
+    rename("my_returns" = 2)
   
-  ggplot(data_plot, aes(x = date, y = daily.returns)) +
+  ggplot(data_plot, aes(x = date, y = my_returns)) +
     geom_line(color = "#8c8c8c") + #"#1B9E77"
     ylab("DJIA return") +
     theme_classic()
   
 }
-
 
 # volatility plots
 
@@ -150,20 +215,40 @@ plot_djia_volatility <- function(data, time_frame, return_period) {
   # creates a plot of volatility against aggregation period
   # input: djia raw data, mean_type ("log"/"arithmetic"), time_frame, return_period: daily or quarterly
   # output: ggplot
-  # note: mean_type does not matter here
   
   data_plot <- data %>% 
     my_vola_fun_progress(time_frame, return_period)
   
   ggplot(data_plot, aes(x = period, fill = djia_vola, y = djia_vola)) +
     geom_area(fill = "#8DD3C7", color = "#1B9E77") +
-    #geom_line() +
     xlab(paste("aggregation horizon ", "(", return_period, ")", sep = "")) + 
     ylab("sd DJIA returns") +
     coord_cartesian(ylim = c(min(data_plot$djia_vola), max(data_plot$djia_vola)),
                     xlim = c(time_frame[1], tail(time_frame,1))) +
     theme_classic()
 
+}
+
+plot_djia_volatility2 <- function(data, return_period) {
+  
+  if (return_period == "daily") {
+    my_factor <- 1/250
+  } else if (return_period == "quarterly") {
+    my_factor <- 1/4
+  } else if (return_period == "5-year") {
+    my_factor <- 5
+  }
+  
+  data_plot <- data %>% 
+    my_vola_fun2(return_period) %>% 
+    mutate("horizon" = period * my_factor)
+  
+  ggplot(data_plot, aes(x = horizon, fill = djia_vola, y = djia_vola)) +
+    geom_area(fill = "#8DD3C7", color = "#1B9E77") +
+    ylab("sd DJIA returns") +
+    xlab("time horizon in years") +
+    theme_classic()
+  
 }
 
 plot_djia_volatility_separate <- function(data_djia, data_gdp, selected_quantile, time_frame, return_period) {
@@ -216,52 +301,92 @@ plot_djia_volatility_separate <- function(data_djia, data_gdp, selected_quantile
 
 # regression plots and summary
 
-my_regression <- function(data_djia, data_gdp) {
+my_regression <- function(data_djia, data_gdp, my_period) { 
+  # plots a regression line and regression summary for the absolute value data (gdp price and djia adjusted)
+  # input: djia and gdp raw data, the period to aggregate the date to (one of "quarterly" or "5-year")
+  # output: list of [1] regression plot, [2] regression summary
   
-  data_djia <- data_djia %>% 
-    tq_transmute(select = c(date, open, high, low, close),
-                 mutate_fun = to.quarterly) %>% 
-    select(c("date", "close"))
+  data_djia <- data_prepare(data_djia, adjusted, "absolute", "whatever", my_period)
   
-  data_gdp <- data_gdp %>% 
-    mutate(date = as.yearqtr(date)) %>% 
-    select(c("date", "price"))
+  data_gdp <- data_prepare(data_gdp, price, "absolute", "log", my_period)
   
-  data_plot <- inner_join(data_djia, data_gdp, by = "date")
+  if(my_period == "quarterly"){
+    
+    data_gdp <- data_gdp %>% 
+      mutate(date = as.yearqtr(date))
+    data_djia <- data_djia %>% 
+      mutate(date = as.yearqtr(date))
+    
+    data_plot <- inner_join(data_djia, data_gdp, by = "date")
+  }
   
-  reg_plot <- ggplot(data_plot, aes(x = price, y = close)) +
+  if(my_period == "5-year"){
+    
+    data_djia <- data_djia %>% 
+      mutate(year = year(date)) 
+    
+    data_gdp <- data_prepare(data_gdp, "price", "absolute", "whatever", my_period) %>% 
+      mutate(year = year(date))
+    
+    data_plot <- inner_join(data_djia, data_gdp, by = "year")
+  }
+  
+  
+  reg_plot <- ggplot(data_plot, aes(x = price, y = adjusted)) +
         geom_smooth(method = "lm", formula = "y ~ x") +
     geom_point(color = "#8c8c8c") + 
     xlab("GDP") + ylab("DJIA Close") +
     theme_classic()
   
-  reg_model <- lm(close ~ price, data = data_plot) %>% 
+  reg_model <- lm(adjusted ~ price, data = data_plot) %>% 
     summary()
   
   return(list(reg_plot, reg_model))
   
 }
 
-my_regression_growth <- function(data_djia, data_gdp, remove_outlier) {
+my_regression_growth <- function(data_djia, data_gdp, my_period, remove_outlier) {
+  # plots a regression line and regression summary for the growth data (gdp growth and djia return)
+  # input: djia and gdp raw data, the period to aggregate the date to (one of "quarterly" or "5-year")
+  # output: list of [1] regre ssion plot, [2] regression summary
   
-  data_djia <- data_djia %>% 
-    tq_transmute(select = c(date, open, high, low, close),
-                 mutate_fun = to.quarterly) %>% 
-    mutate(return = (close - lag(close))/lag(close)) %>% 
-    select(c("date", "return"))
+  data_djia <- data_prepare(data_djia, adjusted, "return", "log", my_period) %>% 
+    rename("return" = 2)
   
-  data_gdp <- data_gdp %>% 
-    mutate(date = as.yearqtr(date)) %>% 
-    mutate(growth = (price - lag(price))/lag(price)) %>% 
-    select(c("date", "growth")) 
+  data_gdp <- data_prepare(data_gdp, price, "return", "log", my_period) %>% 
+    rename("growth" = 2)
   
+  
+  if(my_period == "quarterly"){
+    
+    data_gdp <- data_gdp %>% 
+      mutate(date = as.yearqtr(date))
+    data_djia <- data_djia %>% 
+      mutate(date = as.yearqtr(date))
+    
+    data_plot <- right_join(data_djia, data_gdp, by = "date") %>% 
+      slice(-1)
+    
+  }
+  
+  if(my_period == "5-year"){
+    
+    data_djia <- data_djia %>% 
+      mutate(year = year(date)) 
+    
+    data_gdp <- data_prepare(data_gdp, "price", "absolute", "whatever", my_period) %>% 
+      mutate(year = year(date))
+    
+    data_plot <- right_join(data_djia, data_gdp, by = "year") %>% 
+      slice(-1)
+    
+  }
+ 
+  # EDIT
   if(remove_outlier == TRUE){
     data_gdp <- data_gdp %>% 
       filter(growth <= 0.05 & growth >= -0.05)
   }
-  
-  data_plot <- right_join(data_djia, data_gdp, by = "date") %>% 
-    slice(-1)
   
   reg_plot <- ggplot(data_plot, aes(x = growth, y = return)) +
     geom_smooth(method = "lm", formula = "y ~ x") +

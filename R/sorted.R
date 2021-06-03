@@ -79,6 +79,7 @@ djia_prepare_daily <- function(data, mean_type)  {
 
 # vola functions 
 
+# calculate volatility over different aggregation periods
 # should be the same as the vola function in the helpers.R but without progress tracking, so that I can use it easier here
 my_vola_fun <- function(data, time_frame, return_period) {
   # calculates volatility for a vector of days (loop so not super fast)
@@ -86,24 +87,18 @@ my_vola_fun <- function(data, time_frame, return_period) {
   # input: time_frame: vector that holds the aggregation periods to calculate volatility (format c(start:end))
   # output: tibble with period and vola
   
-  if(return_period == "quarterly"){
-    data <- data %>% 
-      tq_transmute(select = c(date, open, high, low, close, adjusted),
-                   mutate_fun = to.quarterly)
-  }
-  
-  if(return_period == "daily"){
-    data <- data
-  }
+  data <- data_prepare(data, adjusted, "absolute", "whatever", return_period) %>% 
+    drop_na()
   
   vola_vector <- c()
+  
   for (i in seq_along(time_frame)){
-    return_vola <- volatility(data[, c("open", "high", "low", "close")],
-                              n = time_frame[i], calc = "close") %>%
+    return_vola <- volatility(data$adjusted, n = time_frame[i], calc = "close") %>%
       mean(na.rm = T)
     
     vola_vector[i] <- return_vola
   }
+  
   vola_data <- tibble(period = time_frame,
                       djia_vola = vola_vector)
   
@@ -117,29 +112,39 @@ my_vola_fun_manual <- function(data, time_frame, return_period) {
   # input: time_frame: vector that holds the aggregation periods to calculate volatility (format c(start:end))
   # output: tibble with period and vola
   
-  if(return_period == "quarterly"){
-    data <- data %>% 
-      tq_transmute(select = adjusted,
-                   mutate_fun = periodReturn,
-                   period = "quarterly",
-                   type = "log") %>% 
-      mutate("returns" = quarterly.returns)
+  data <- data_prepare(data, adjusted, "absolute", "whatever", return_period) %>% 
+    drop_na()
+  
+  vola_vector <- c()
+  
+  for (i in seq_along(time_frame)){
+    return_vola <- runsd(data$returns, k = time_frame[i], 
+                         endrule = "NA", align = "right") %>%
+      mean(na.rm = T)
+    
+    vola_vector[i] <- return_vola
   }
   
-  if(return_period == "daily"){
-    data <- data %>% 
-      tq_mutate(select = adjusted,
-                mutate_fun = periodReturn,
-                period = "daily",
-                type = "log") %>% 
-      mutate("returns" = daily.returns)
-  }
+  vola_data <- tibble(period = time_frame,
+                      djia_vola = vola_vector)
+  
+  return(vola_data)
+}
+
+# calculate volatility over different aggregation periods without averaging
+my_vola_fun2 <- function(data, time_frame, return_period) {
+  # calculates volatility for a vector of days (loop so not super fast)
+  # input: data: stock price data with at least open, high, low, close columns
+  # input: time_frame: vector that holds the aggregation periods to calculate volatility (format c(start:end))
+  # output: tibble with period and vola
+  
+  data <- data_prepare(data, adjusted, "absolute", "whatever", return_period) %>% 
+    drop_na()
   
   vola_vector <- c()
   for (i in seq_along(time_frame)){
-    return_vola <-  runsd(data$returns, k = time_frame[i], 
-                         endrule = "NA", align = "right") %>%
-      mean(na.rm = T)
+    return_vola <- volatility(data$adjusted[c(0:time_frame[i])], n = time_frame[i], calc = "close") %>%
+      tail(1)
     
     vola_vector[i] <- return_vola
   }
